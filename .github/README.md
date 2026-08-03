@@ -247,10 +247,10 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ## 🌟 **Support & Community**
 
 <p align="center">
-  <a href="https://t.me/radha_bot_channel">
+  <a href="https://t.me/+Vo8tTaZsz9Q5Njk9">
     <img src="https://img.shields.io/badge/Join-Telegram%20Channel-FF6B6B?style=for-the-badge&logo=telegram" alt="Telegram Channel">
   </a>
-  <a href="https://t.me/radha_bot_support">
+  <a href="https://t.me/Demon_x_coder_aura">
     <img src="https://img.shields.io/badge/Get-Support-FF9A9E?style=for-the-badge&logo=telegram" alt="Support Group">
   </a>
   <a href="https://ko-fi.com/madara">
@@ -318,7 +318,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
   <a href="https://github.com/madara">
     <img src="https://github.com/madara.png" width="150px;" alt="Team"/>
     <br />
-    <b>💫 Radha Team</b>
+    <b>💫 Rajshree Team</b>
   </a>
   <br />
   <a href="https://github.com/madara" title="Code">💻</a>
@@ -352,11 +352,11 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 📞 **Contact**
 
-- **Developer Telegram:** [@madara](https://t.me/madara)
-- **Bot Channel:** [@radha_bot_channel](https://t.me/radha_bot_channel)
-- **Support Group:** [@radha_bot_support](https://t.me/radha_bot_support)
-- **Email:** madara@example.com
-- **GitHub:** [github.com/madara](https://github.com/madara)
+- **Developer Telegram:** [@madara](https://t.me/Demon_x_coder_aura)
+- **Bot Channel:** [GMS][https://t.me/+Vo8tTaZsz9Q5Njk9]
+- **Support Group:** [DFS][https://t.me/+gqpAcHXgggxhZjRl]
+- **Email:** shubhkumarmishra82@gmail.com
+- **GitHub:** [nahi pata](https://github.com/)
 
 ---
 
