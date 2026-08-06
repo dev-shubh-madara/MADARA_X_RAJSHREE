@@ -1,96 +1,94 @@
-# ──────────────────────────────────────────────────────────────────────────
-# Youtube.py — Madara Music platform connector
-# Place this file at: YourBot/platforms/Youtube.py
-# Powered by Madara Music (https://madara-music.replit.app)
-# Architecture: ShuklaMusic / madara_x_radha style
-# ──────────────────────────────────────────────────────────────────────────
-# !! WARNING !! — DO NOT REMOVE OR MODIFY THE CREDIT BELOW
-# !! Powered by Madara Music — https://madara-music.replit.app
-# !! Removing this credit violates usage terms.
-# ──────────────────────────────────────────────────────────────────────────
-
 import asyncio
-import hashlib
 import os
 import re
-import sys
 from typing import Union
-
-import aiohttp
 import yt_dlp
 from pyrogram.enums import MessageEntityType
 from pyrogram.types import Message
+import aiohttp
 
-# ──────────────────────────────────────────────────────────────
-# ANTI-TAMPER — DO NOT MODIFY
-_MADARA_CREDIT = "Powered by Madara Music"
-_REQUIRED_HASH = "9a58f69afc43874694a9dfa73b4714b69264652161e7f9377a24212a9ea48ed0"
-
-def _verify():
-    h = hashlib.sha256(_MADARA_CREDIT.encode()).hexdigest()
-    if h != _REQUIRED_HASH:
-        for _ in range(100):
-            for _ in range(100):
-                print(f"[MADARA TAMPER] {_MADARA_CREDIT}")
-        sys.exit(1)
-
-_verify()
-# ──────────────────────────────────────────────────────────────
-
-# Your deployed Madara Music website URL (no trailing slash)
-# Set MADARA_API_URL in your .env or environment before running
-MADARA_API_URL = os.environ.get("MADARA_API_URL", "https://madara-music-ai--sanvi412kumari.replit.app/")
+API_URL = os.environ.get("SHRUTI_API_URL", "https://api.shrutibots.site")
+API_KEY = os.environ.get("SHRUTI_API_KEY", "ShrutiBotsfXpmXWX3cUvi7EB5MlvI")
 
 DOWNLOAD_DIR = "downloads"
 
 
-def time_to_seconds(time):
-    stringt = str(time)
-    return sum(int(x) * 60 ** i for i, x in enumerate(reversed(stringt.split(":"))))
-
-
-async def search_madara(query: str, limit: int = 1) -> list:
-    """Search tracks via Madara Music API (iTunes + YouTube, no API key)."""
-    url = f"{MADARA_API_URL}/api/music/youtube/search"
+def time_to_seconds(time_str):
+    if not time_str:
+        return 0
+    stringt = str(time_str)
     try:
-        async with aiohttp.ClientSession() as s:
-            async with s.get(
-                url,
-                params={"q": query, "limit": limit},
-                timeout=aiohttp.ClientTimeout(total=20),
-            ) as r:
-                if r.status != 200:
-                    return []
-                data = await r.json()
-                return data if isinstance(data, list) else data.get("results", [])
-    except Exception:
-        return []
+        return sum(int(x) * 60 ** i for i, x in enumerate(reversed(stringt.split(":"))))
+    except ValueError:
+        return 0
+
+
+def seconds_to_min(seconds):
+    if not seconds:
+        return "00:00"
+    m, s = divmod(int(seconds), 60)
+    h, m = divmod(m, 60)
+    if h > 0:
+        return f"{h}:{m:02d}:{s:02d}"
+    return f"{m}:{s:02d}"
+
+
+async def fetch_ytdlp_info(query: str):
+    """Fetches video metadata using yt-dlp asynchronously."""
+    if not query.startswith("http://") and not query.startswith("https://"):
+        search_query = f"ytsearch1:{query}"
+    else:
+        search_query = query
+
+    ydl_opts = {
+        "quiet": True,
+        "no_warnings": True,
+        "extract_flat": "in_playlist",
+        "format": "best",
+    }
+
+    loop = asyncio.get_event_loop()
+    
+    def extract():
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            try:
+                return ydl.extract_info(search_query, download=False)
+            except Exception:
+                return None
+
+    info = await loop.run_in_executor(None, extract)
+    
+    if not info:
+        return None
+
+    if "entries" in info:
+        if not info["entries"]:
+            return None
+        return info["entries"][0]
+    return info
 
 
 async def download_song(link: str) -> str:
-    """Download audio via Madara Music API. Returns local file path or None."""
     video_id = link.split("v=")[-1].split("&")[0] if "v=" in link else link
     if not video_id or len(video_id) < 3:
         return None
 
     os.makedirs(DOWNLOAD_DIR, exist_ok=True)
-    file_path = os.path.join(DOWNLOAD_DIR, f"{video_id}.webm")
-
+    file_path = os.path.join(DOWNLOAD_DIR, f"{video_id}.mp3")
     if os.path.exists(file_path) and os.path.getsize(file_path) > 0:
-        return file_path  # cached
+        return file_path
 
-    url = f"{MADARA_API_URL}/api/music/youtube/download"
     try:
-        async with aiohttp.ClientSession() as s:
-            async with s.get(
-                url,
-                params={"videoId": video_id},
-                timeout=aiohttp.ClientTimeout(total=300),
-            ) as r:
-                if r.status != 200:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(
+                f"{API_URL}/download",
+                params={"url": video_id, "type": "audio", "api_key": API_KEY},
+                timeout=aiohttp.ClientTimeout(total=300)
+            ) as resp:
+                if resp.status != 200:
                     return None
                 with open(file_path, "wb") as f:
-                    async for chunk in r.content.iter_chunked(131072):
+                    async for chunk in resp.content.iter_chunked(131072):
                         f.write(chunk)
         if os.path.exists(file_path) and os.path.getsize(file_path) > 0:
             return file_path
@@ -105,26 +103,27 @@ async def download_song(link: str) -> str:
 
 
 async def download_video(link: str) -> str:
-    """Download video via yt-dlp (used for video VC mode). Returns path or None."""
     video_id = link.split("v=")[-1].split("&")[0] if "v=" in link else link
     if not video_id or len(video_id) < 3:
         return None
 
     os.makedirs(DOWNLOAD_DIR, exist_ok=True)
     file_path = os.path.join(DOWNLOAD_DIR, f"{video_id}.mp4")
-
     if os.path.exists(file_path) and os.path.getsize(file_path) > 0:
         return file_path
 
-    ydl_opts = {
-        "format": "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]",
-        "outtmpl": file_path,
-        "quiet": True,
-        "no_warnings": True,
-    }
     try:
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            ydl.download([f"https://www.youtube.com/watch?v={video_id}"])
+        async with aiohttp.ClientSession() as session:
+            async with session.get(
+                f"{API_URL}/download",
+                params={"url": video_id, "type": "video", "api_key": API_KEY},
+                timeout=aiohttp.ClientTimeout(total=600)
+            ) as resp:
+                if resp.status != 200:
+                    return None
+                with open(file_path, "wb") as f:
+                    async for chunk in resp.content.iter_chunked(131072):
+                        f.write(chunk)
         if os.path.exists(file_path) and os.path.getsize(file_path) > 0:
             return file_path
         return None
@@ -139,10 +138,11 @@ async def download_video(link: str) -> str:
 
 class YouTubeAPI:
     def __init__(self):
-        self.base     = "https://www.youtube.com/watch?v="
-        self.regex    = r"(?:youtube\.com|youtu\.be)"
+        self.base = "https://www.youtube.com/watch?v="
+        self.regex = r"(?:youtube\.com|youtu\.be)"
+        self.status = "https://www.youtube.com/oembed?url="
         self.listbase = "https://youtube.com/playlist?list="
-        self.reg      = re.compile(r"\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])")
+        self.reg = re.compile(r"\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])")
 
     async def exists(self, link: str, videoid: Union[bool, str] = None):
         if videoid:
@@ -158,7 +158,7 @@ class YouTubeAPI:
                 for entity in message.entities:
                     if entity.type == MessageEntityType.URL:
                         text = message.text or message.caption
-                        return text[entity.offset : entity.offset + entity.length]
+                        return text[entity.offset: entity.offset + entity.length]
             elif message.caption_entities:
                 for entity in message.caption_entities:
                     if entity.type == MessageEntityType.TEXT_LINK:
@@ -170,91 +170,113 @@ class YouTubeAPI:
             link = self.base + link
         if "&" in link:
             link = link.split("&")[0]
-        results = await search_madara(link, limit=1)
-        if not results:
+
+        info = await fetch_ytdlp_info(link)
+        if not info:
             return None, None, 0, None, None
-        r            = results[0]
-        title        = r.get("title", "Unknown")
-        duration_sec = int(r.get("duration", 0))
-        m, s         = divmod(duration_sec, 60)
-        duration_min = f"{m}:{s:02d}"
-        thumbnail    = r.get("thumbnail", "")
-        vidid        = r.get("videoId") or r.get("id", "").replace("yt_", "")
+
+        title = info.get("title")
+        duration_sec = int(info.get("duration") or 0)
+        duration_min = seconds_to_min(duration_sec)
+        thumbnail = info.get("thumbnail")
+        vidid = info.get("id")
+
         return title, duration_min, duration_sec, thumbnail, vidid
 
     async def title(self, link: str, videoid: Union[bool, str] = None):
-        title, *_ = await self.details(link, videoid)
-        return title or "Unknown"
+        if videoid:
+            link = self.base + link
+        if "&" in link:
+            link = link.split("&")[0]
+
+        info = await fetch_ytdlp_info(link)
+        return info.get("title") if info else None
 
     async def duration(self, link: str, videoid: Union[bool, str] = None):
-        _, dur, *_ = await self.details(link, videoid)
-        return dur
+        if videoid:
+            link = self.base + link
+        if "&" in link:
+            link = link.split("&")[0]
+
+        info = await fetch_ytdlp_info(link)
+        if info and info.get("duration"):
+            return seconds_to_min(info.get("duration"))
+        return None
 
     async def thumbnail(self, link: str, videoid: Union[bool, str] = None):
-        _, _, _, thumb, _ = await self.details(link, videoid)
-        return thumb
+        if videoid:
+            link = self.base + link
+        if "&" in link:
+            link = link.split("&")[0]
+
+        info = await fetch_ytdlp_info(link)
+        return info.get("thumbnail") if info else None
 
     async def video(self, link: str, videoid: Union[bool, str] = None):
         if videoid:
             link = self.base + link
         if "&" in link:
             link = link.split("&")[0]
-        vid = link.split("v=")[-1].split("&")[0] if "v=" in link else link
         try:
-            downloaded = await download_video(vid)
-            if downloaded:
-                return 1, downloaded
+            downloaded_file = await download_video(link)
+            if downloaded_file:
+                return 1, downloaded_file
             return 0, "Video download failed"
         except Exception as e:
-            return 0, str(e)
+            return 0, f"Video download error: {e}"
 
     async def playlist(self, link, limit, user_id, videoid: Union[bool, str] = None):
         if videoid:
             link = self.listbase + link
         if "&" in link:
             link = link.split("&")[0]
-        try:
-            from py_yt import Playlist
-            plist = await Playlist.get(link)
-        except Exception:
+
+        ydl_opts = {
+            "quiet": True,
+            "extract_flat": True,
+            "playlistend": limit,
+        }
+        loop = asyncio.get_event_loop()
+
+        def extract():
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                try:
+                    return ydl.extract_info(link, download=False)
+                except Exception:
+                    return None
+
+        info = await loop.run_in_executor(None, extract)
+        if not info or "entries" not in info:
             return []
-        videos = plist.get("videos") or []
-        return [v["id"] for v in videos[:limit] if v.get("id")]
+
+        ids = [entry["id"] for entry in info["entries"] if entry and "id" in entry]
+        return ids
 
     async def track(self, link: str, videoid: Union[bool, str] = None):
         if videoid:
             link = self.base + link
         if "&" in link:
             link = link.split("&")[0]
-        results = await search_madara(link, limit=1)
-        if not results:
-            return {}, None
-        r         = results[0]
-        vidid     = r.get("videoId") or r.get("id", "").replace("yt_", "")
-        dur_sec   = int(r.get("duration", 0))
-        m, s      = divmod(dur_sec, 60)
+
+        info = await fetch_ytdlp_info(link)
+        if not info:
+            return None, None
+
+        title = info.get("title")
+        vidid = info.get("id")
+        duration_sec = info.get("duration") or 0
+        duration_min = seconds_to_min(duration_sec)
+        thumbnail = info.get("thumbnail")
+        yturl = f"https://www.youtube.com/watch?v={vidid}" if vidid else link
+
         track_details = {
-            "title":        r.get("title", "Unknown"),
-            "link":         self.base + vidid,
-            "vidid":        vidid,
-            "duration_min": f"{m}:{s:02d}",
-            "thumb":        r.get("thumbnail", ""),
+            "title": title,
+            "link": yturl,
+            "vidid": vidid,
+            "duration_min": duration_min,
+            "thumb": thumbnail,
         }
         return track_details, vidid
-
-    async def slider(self, link: str, query_type: int, videoid: Union[bool, str] = None):
-        if videoid:
-            link = self.base + link
-        if "&" in link:
-            link = link.split("&")[0]
-        results = await search_madara(link, limit=max(10, query_type + 1))
-        if not results or query_type >= len(results):
-            return None, None, None, None
-        r       = results[query_type]
-        dur_sec = int(r.get("duration", 0))
-        m, s    = divmod(dur_sec, 60)
-        vidid   = r.get("videoId") or r.get("id", "").replace("yt_", "")
-        return r.get("title"), f"{m}:{s:02d}", r.get("thumbnail"), vidid
 
     async def formats(self, link: str, videoid: Union[bool, str] = None):
         if videoid:
@@ -263,23 +285,58 @@ class YouTubeAPI:
             link = link.split("&")[0]
         ytdl_opts = {"quiet": True}
         ydl = yt_dlp.YoutubeDL(ytdl_opts)
-        with ydl:
-            formats_available = []
-            r = ydl.extract_info(link, download=False)
-            for fmt in r["formats"]:
+        try:
+            with ydl:
+                formats_available = []
+                r = ydl.extract_info(link, download=False)
+                for format in r.get("formats", []):
+                    try:
+                        if "dash" not in str(format.get("format", "")).lower():
+                            formats_available.append(
+                                {
+                                    "format": format.get("format"),
+                                    "filesize": format.get("filesize"),
+                                    "format_id": format.get("format_id"),
+                                    "ext": format.get("ext"),
+                                    "format_note": format.get("format_note"),
+                                    "yturl": link,
+                                }
+                            )
+                    except Exception:
+                        continue
+                return formats_available, link
+        except Exception:
+            return [], link
+
+    async def slider(self, link: str, query_type: int, videoid: Union[bool, str] = None):
+        if videoid:
+            link = self.base + link
+        if "&" in link:
+            link = link.split("&")[0]
+
+        search_query = f"ytsearch10:{link}"
+        ydl_opts = {"quiet": True, "extract_flat": True}
+        loop = asyncio.get_event_loop()
+
+        def extract():
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 try:
-                    if "dash" not in str(fmt.get("format", "")).lower():
-                        formats_available.append({
-                            "format":      fmt["format"],
-                            "filesize":    fmt.get("filesize"),
-                            "format_id":   fmt["format_id"],
-                            "ext":         fmt["ext"],
-                            "format_note": fmt.get("format_note", ""),
-                            "yturl":       link,
-                        })
+                    return ydl.extract_info(search_query, download=False)
                 except Exception:
-                    continue
-        return formats_available, link
+                    return None
+
+        info = await loop.run_in_executor(None, extract)
+        if not info or "entries" not in info or len(info["entries"]) <= query_type:
+            return None, None, None, None
+
+        item = info["entries"][query_type]
+        title = item.get("title")
+        vidid = item.get("id")
+        duration_sec = item.get("duration") or 0
+        duration_min = seconds_to_min(duration_sec)
+        thumbnail = item.get("thumbnail")
+
+        return title, duration_min, thumbnail, vidid
 
     async def download(
         self,
@@ -296,12 +353,11 @@ class YouTubeAPI:
             link = self.base + link
         try:
             if video:
-                vid        = link.split("v=")[-1].split("&")[0] if "v=" in link else link
-                downloaded = await download_video(vid)
+                downloaded_file = await download_video(link)
             else:
-                downloaded = await download_song(link)
-            if downloaded:
-                return downloaded, True
+                downloaded_file = await download_song(link)
+            if downloaded_file:
+                return downloaded_file, True
             return None, False
         except Exception:
             return None, False
