@@ -12,6 +12,8 @@ from pyrogram.enums import MessageEntityType
 
 from pyrogram.types import Message
 
+from youtube_search import YoutubeSearch
+
 from py_yt import VideosSearch, Playlist
 
 import aiohttp
@@ -385,40 +387,86 @@ class YouTubeAPI:
 
 
     async def track(self, link: str, videoid: Union[bool, str] = None):
-
+              """Resolve a search query or YouTube URL into a playable track."""
         if videoid:
 
             link = self.base + link
 
-        if "&" in link:
+         search_link = link.split("&", 1)[0].strip()
+        if not search_link:
+            raise ValueError("Empty YouTube search query")
 
-            link = link.split("&")[0]
 
-        results = VideosSearch(link, limit=1)
+            result = None
+        primary_error = None
+        for _ in range(2):
+            try:
+                response = await VideosSearch(
+                    search_link,
+                    limit=1,
+                    timeout=30,
+                    max_retries=1,
+                ).next()
+                results = response.get("result", []) if response else []
+                if results:
+                    result = results[0]
+                    break
+            except Exception as exc:
+                primary_error = exc
+            await asyncio.sleep(0.5)
 
-        for result in (await results.next())["result"]:
 
-            title = result["title"]
+        if result is None:
+            try:
+                fallback_results = await asyncio.to_thread(
+                    YoutubeSearch(
+                        search_link,
+                        max_results=1,
+                        retries=2,
+                        timeout=20,
+                    ).to_dict
+                )
+                if fallback_results:
+                    fallback = fallback_results[0]
+                    vidid = fallback["id"]
+                    result = {
+                        "title": fallback.get("title") or "Unknown title",
+                        "duration": fallback.get("duration") or "",
+                        "id": vidid,
+                        "link": f"{self.base}{vidid}",
+                        "thumbnails": [{"url": fallback["thumbnails"][0]}],
+                    }
+            except Exception as fallback_error:
+                raise RuntimeError(
+                    "YouTube search returned no track details"
+                ) from (fallback_error or primary_error)
 
-            duration_min = result["duration"]
+        if not result:
+            raise RuntimeError("YouTube search returned no track details")
 
-            vidid = result["id"]
 
-            yturl = result["link"]
+            vidid = result.get("id")
+        thumbnails = result.get("thumbnails") or []
+        if thumbnails:
+            first_thumbnail = thumbnails[0]
+            thumbnail = (
+                first_thumbnail.get("url", "")
+                if isinstance(first_thumbnail, dict)
+                else first_thumbnail
+            )
+        else:
+            thumbnail = ""
+        if not vidid or not result.get("title"):
+            raise RuntimeError("YouTube returned incomplete track details")
 
-            thumbnail = result["thumbnails"][0]["url"].split("?")[0]
-
+            
         track_details = {
 
-            "title": title,
-
-            "link": yturl,
-
+            "title": result["title"],
+            "link": result.get("link") or f"{self.base}{vidid}",
             "vidid": vidid,
-
-            "duration_min": duration_min,
-
-            "thumb": thumbnail,
+            "duration_min": result.get("duration") or "",
+            "thumb": thumbnail.split("?", 1)[0],
 
         }
 
