@@ -34,7 +34,8 @@ pydub
 pyfiglet
 python-dotenv
 python-whois
-py-yt-search
+py-yt-search>=0.7.2
+youtube-search>=2.1.2
 pyshorteners
 pyttsx3
 pytz
