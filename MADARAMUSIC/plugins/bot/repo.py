@@ -44,7 +44,7 @@ async def start(_, msg):
     ]
 
     await msg.reply_photo(
-        photo="https://i.ibb.co/rRXc8MGR/image.jpg",
+        photo="https://files.catbox.moe/pyt85v.jpg",
         caption=start_txt,
         reply_markup=InlineKeyboardMarkup(buttons),
     )
