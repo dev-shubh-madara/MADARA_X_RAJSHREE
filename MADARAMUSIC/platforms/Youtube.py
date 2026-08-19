@@ -202,7 +202,49 @@ class YouTubeAPI:
 
         result = None
         primary_error = None
-        for _ in range(2):
+
+        # yt-dlp's native YouTube search is considerably more reliable on
+        # hosted environments than the HTML scraping libraries.  Railway in
+        # particular can receive a different response from YouTube, which
+        # previously caused /play to fail before a track was queued.
+        try:
+            ydl_opts = {
+                "quiet": True,
+                "no_warnings": True,
+                "skip_download": True,
+                "extract_flat": True,
+                "noplaylist": True,
+                "default_search": "ytsearch",
+                "geo_bypass": True,
+                "nocheckcertificate": True,
+            }
+            cookie_file = os.path.join(
+                os.path.dirname(os.path.dirname(__file__)),
+                "assets",
+                "cookies.txt",
+            )
+            if os.path.isfile(cookie_file) and os.path.getsize(cookie_file) > 0:
+                ydl_opts["cookiefile"] = cookie_file
+
+            lookup = (
+                search_link
+                if re.search(self.regex, search_link)
+                else f"ytsearch1:{search_link}"
+            )
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                info = await asyncio.to_thread(
+                    ydl.extract_info,
+                    lookup,
+                    False,
+                )
+            entries = info.get("entries") if info else None
+            result = (entries or [info])[0] if entries or info else None
+        except Exception as exc:
+            primary_error = exc
+
+        # Keep both existing providers as fallbacks for transient YouTube
+        # responses and for older deployments with different yt-dlp builds.
+        if result is None:
             try:
                 response = await VideosSearch(
                     search_link,
@@ -213,10 +255,8 @@ class YouTubeAPI:
                 results = response.get("result", []) if response else []
                 if results:
                     result = results[0]
-                    break
             except Exception as exc:
                 primary_error = exc
-            await asyncio.sleep(0.5)
 
         if result is None:
             try:
@@ -261,11 +301,26 @@ class YouTubeAPI:
         if not vidid or not result.get("title"):
             raise RuntimeError("YouTube returned incomplete track details")
 
+        duration_value = result.get("duration") or ""
+        if isinstance(duration_value, (int, float)):
+            duration_seconds = int(duration_value)
+            hours, remainder = divmod(duration_seconds, 3600)
+            minutes, seconds = divmod(remainder, 60)
+            duration_min = (
+                f"{hours}:{minutes:02d}:{seconds:02d}"
+                if hours
+                else f"{minutes}:{seconds:02d}"
+            )
+        else:
+            duration_min = str(duration_value)
+
         track_details = {
             "title": result["title"],
-            "link": result.get("link") or f"{self.base}{vidid}",
+            "link": result.get("webpage_url")
+            or result.get("link")
+            or f"{self.base}{vidid}",
             "vidid": vidid,
-            "duration_min": result.get("duration") or "",
+            "duration_min": duration_min,
             "thumb": thumbnail.split("?", 1)[0],
         }
 
