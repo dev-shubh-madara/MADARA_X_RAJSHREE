@@ -5,12 +5,12 @@ from typing import Union
 import yt_dlp
 from pyrogram.enums import MessageEntityType
 from pyrogram.types import Message
-from youtube_search import YoutubeSearch
 from py_yt import VideosSearch, Playlist
 import aiohttp
 
 API_URL = os.environ.get("SHRUTI_API_URL", "https://api.shrutibots.site")
-API_KEY = os.environ.get("SHRUTI_API_KEY", "ShrutiBotsONPU7uRpYqW4wZCGLpgK")
+
+API_KEY = os.environ.get("SHRUTI_API_KEY", "ShrutiBotskYt4c61qM3ofAJIoUPea") ## Get This API KEY FROM TELEGRAM BOT USERNAME: @SHRUTIAPIBOT 
 
 DOWNLOAD_DIR = "downloads"
 
@@ -192,83 +192,24 @@ class YouTubeAPI:
         return ids
 
     async def track(self, link: str, videoid: Union[bool, str] = None):
-        """Resolve a search query or YouTube URL into a playable track."""
         if videoid:
             link = self.base + link
-
-        search_link = link.split("&", 1)[0].strip()
-        if not search_link:
-            raise ValueError("Empty YouTube search query")
-
-        result = None
-        primary_error = None
-        for _ in range(2):
-            try:
-                response = await VideosSearch(
-                    search_link,
-                    limit=1,
-                    timeout=30,
-                    max_retries=1,
-                ).next()
-                results = response.get("result", []) if response else []
-                if results:
-                    result = results[0]
-                    break
-            except Exception as exc:
-                primary_error = exc
-            await asyncio.sleep(0.5)
-
-        if result is None:
-            try:
-                fallback_results = await asyncio.to_thread(
-                    YoutubeSearch(
-                        search_link,
-                        max_results=1,
-                        retries=2,
-                        timeout=20,
-                    ).to_dict
-                )
-                if fallback_results:
-                    fallback = fallback_results[0]
-                    vidid = fallback["id"]
-                    result = {
-                        "title": fallback.get("title") or "Unknown title",
-                        "duration": fallback.get("duration") or "",
-                        "id": vidid,
-                        "link": f"{self.base}{vidid}",
-                        "thumbnails": [{"url": fallback["thumbnails"][0]}],
-                    }
-            except Exception as fallback_error:
-                raise RuntimeError(
-                    "YouTube search returned no track details"
-                ) from (fallback_error or primary_error)
-
-        if not result:
-            raise RuntimeError("YouTube search returned no track details")
-
-        vidid = result.get("id")
-        thumbnails = result.get("thumbnails") or []
-        if thumbnails:
-            first_thumbnail = thumbnails[0]
-            thumbnail = (
-                first_thumbnail.get("url", "")
-                if isinstance(first_thumbnail, dict)
-                else first_thumbnail
-            )
-        else:
-            thumbnail = ""
-
-        if not vidid or not result.get("title"):
-            raise RuntimeError("YouTube returned incomplete track details")
-
+        if "&" in link:
+            link = link.split("&")[0]
+        results = VideosSearch(link, limit=1)
+        for result in (await results.next())["result"]:
+            title = result["title"]
+            duration_min = result["duration"]
+            vidid = result["id"]
+            yturl = result["link"]
+            thumbnail = result["thumbnails"][0]["url"].split("?")[0]
         track_details = {
-            "title": result["title"],
-            "link": result.get("link") or f"{self.base}{vidid}",
+            "title": title,
+            "link": yturl,
             "vidid": vidid,
-            "duration_min": result.get("duration") or "",
-            "thumb": thumbnail.split("?", 1)[0],
+            "duration_min": duration_min,
+            "thumb": thumbnail,
         }
-
         return track_details, vidid
 
     async def formats(self, link: str, videoid: Union[bool, str] = None):
