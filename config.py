@@ -27,7 +27,7 @@ if not API_ID or not API_HASH or not BOT_TOKEN:
     )
 
 # ─── Bot & Owner Info ────────────────────────────────────────────────────────
-OWNER_USERNAME  = getenv("OWNER_USERNAME", "Madara_x_coder_aura")
+OWNER_USERNAME  = getenv("OWNER_USERNAME", "@Demon_x_coder_aura")
 BOT_USERNAME    = getenv("BOT_USERNAME", "RAJSHREE_MUSIC_GMS_op_bot")
 BOT_NAME        = getenv("BOT_NAME", "Rajshree")
 ASSUSERNAME     = getenv("ASSUSERNAME", "RajshreeAssistant")
